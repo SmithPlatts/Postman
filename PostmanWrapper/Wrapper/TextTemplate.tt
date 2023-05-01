@@ -1,10 +1,12 @@
 ﻿<#@ output extension=".cs" #>
 <#@ template debug="false" hostspecific="true" language="C#" #>
 <#@ assembly name="System.Core" #>
+<#@ assembly name="NetStandard" #>
 <#@ import namespace="System.Text" #>
 <#@ import namespace="System.Collections.Generic" #>
 <#@ assembly name="$(CommonFolder)\Postman.Common.dll" #>
 <#@ assembly name="$(JsonFolder)\Newtonsoft.Json.dll" #>
+<#@ assembly name="$(Microsoft_VisualStudio_Interop)" #>
 <#@ import namespace="Postman.Common" #>
 <#@ import namespace="System.Reflection" #>
 <#@ import namespace="System" #>

@@ -16,6 +16,7 @@
   <PropertyGroup>
     <CommonFolder>$(MSBuildProjectDirectory)\..\Common\bin\$(Configuration)</CommonFolder>
     <JsonFolder>$(PkgNewtonsoft_Json)\lib\netstandard1.3</JsonFolder>
+    <Microsoft_VisualStudio_Interop>$(PkgMicrosoft_VisualStudio_Interop)\lib\netstandard2.0\Microsoft.VisualStudio.Interop.dll</Microsoft_VisualStudio_Interop>
   </PropertyGroup>
   <ItemGroup>
     <T4ParameterValues Include="CommonFolder">
@@ -23,6 +24,9 @@
     </T4ParameterValues>
     <T4ParameterValues Include="JsonFolder">
       <Value>$(JsonFolder)</Value>
+    </T4ParameterValues>
+    <T4ParameterValues Include="Microsoft_VisualStudio_Interop">
+      <Value>$(Microsoft_VisualStudio_Interop)</Value>
     </T4ParameterValues>
   </ItemGroup>
   <ItemGroup>
@@ -44,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.*" />
+    <PackageReference Include="Microsoft.VisualStudio.Interop" Version="17.*" GeneratePathProperty="true" />
     <PackageReference Include="MSTest.TestAdapter" Version="2.2.10" />
     <PackageReference Include="MSTest.TestFramework" Version="2.2.10" />
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" GeneratePathProperty="true" />
