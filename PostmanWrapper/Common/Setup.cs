@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using EnvDTE80;
 
 namespace Postman.Common
@@ -18,7 +19,29 @@ namespace Postman.Common
             get
             {
                 DTE2 dte = DTEHandler.GetCurrent();
-                string solutionDirectory = Path.GetDirectoryName(dte.Solution.FullName);
+
+                string solutionDirectory = string.Empty;
+                int retry = 0;
+                do
+                {
+                    try
+                    {
+                        solutionDirectory = Path.GetDirectoryName(dte.Solution.FullName);
+                    }
+                    catch (COMException ex)
+                    {
+                        if (ex.HResult == -2147417846) // 0x8001010A (RPC_E_SERVERCALL_RETRYLATER)
+                        {
+                            retry++;
+                            System.Threading.Thread.Sleep(500);
+                            continue;
+                        }
+
+                        throw;
+                    }
+                }
+                while (string.IsNullOrWhiteSpace(solutionDirectory) && retry > 0 && retry <= 5);
+
                 return solutionDirectory;
             }
         }
