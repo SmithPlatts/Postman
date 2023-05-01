@@ -11,7 +11,7 @@ namespace Postman.Common
 
         public Setup()
         {
-            if (!IsTestAgentRun) gitRootFolder = GetGitRootFolder();
+            if (!IsTestAgentRun) gitRootFolder = GetGitRootFolder(SolutionDirectory);
         }
 
         public string SolutionDirectory
@@ -85,9 +85,9 @@ namespace Postman.Common
             return files;
         }
 
-        private string GetGitRootFolder()
+        public string GetGitRootFolder(string fromPath)
         {
-            DirectoryInfo rootDir = new DirectoryInfo(SolutionDirectory);
+            DirectoryInfo rootDir = new DirectoryInfo(fromPath);
             do
             {
                 DirectoryInfo gitDir = new DirectoryInfo(Path.Combine(rootDir.FullName, ".git"));

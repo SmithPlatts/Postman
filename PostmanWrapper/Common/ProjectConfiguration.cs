@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Xml.Serialization;
 using Newtonsoft.Json;
 using Postman.Common.Xml;
@@ -32,6 +34,27 @@ namespace Postman.Common
             {
                 return XmlSerialiser.Value.Deserialize(xmlReader) as ProjectConfiguration;
             }
+        }
+
+        public override string ToString() => ToString(0);
+
+        public string ToString(int indentSize)
+        {
+            string indent = indentSize > 0 ? "".PadRight(indentSize, ' ') : string.Empty;
+            StringBuilder builder = new StringBuilder();
+            builder.AppendFormat("{0}- {1}:", indent, nameof(Connection)).AppendLine();
+            builder.AppendFormat("{0}| - {1}: {2}", indent, nameof(Connection.Url), Connection.UrlString).AppendLine();
+            builder.AppendFormat("{0}| - {1}: {2}", indent, nameof(Connection.Project), Connection.Project).AppendLine();
+            builder.AppendFormat("{0}- {1}:", indent, nameof(TestCase)).AppendLine();
+            builder.AppendFormat("{0}| - {1}: {2}", indent, nameof(TestCase.AreaPath), TestCase.AreaPath).AppendLine();
+            builder.AppendFormat("{0}| - {1}:", indent, nameof(TestCase.CustomFields)).AppendLine();
+            foreach (ProjectCustomField field in TestCase?.CustomFields ?? Enumerable.Empty<ProjectCustomField>())
+            {
+                builder.AppendFormat("{0}| | - {1}: {2}", indent, nameof(field.Id), field.Id).AppendLine();
+                builder.AppendFormat("{0}| | - {1}: {2}", indent, nameof(field.DefaultValue), field.DefaultValue).AppendLine();
+            }
+
+            return builder.ToString();
         }
     }
 

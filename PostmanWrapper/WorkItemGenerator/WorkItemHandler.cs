@@ -38,6 +38,8 @@ public class WorkItemHandler
     {
         setup = new Setup();
         configuration = GetConfiguration();
+        Console.WriteLine("[INFO] Configuration:");
+        Console.WriteLine(configuration.ToString(4));
 
         if (setup.IsTestAgentRun)
         {
@@ -56,6 +58,12 @@ public class WorkItemHandler
 
     public void UpdateProjectTestCases()
     {
+        Console.WriteLine($"[INFO] System.WorkFolder directory: {setup.SystemWorkFolder}");
+        foreach (string path in setup.GetCollectionFilePaths())
+        {
+            Console.WriteLine($"[INFO] Scoped collection file: {path}");
+        }
+
         // Retrieve list of postman test cases in Wrapper project
         List<MethodInfo> testMethods = GetTestMethods(Assembly.GetAssembly(typeof(PostmanWrapper)));
 
@@ -141,8 +149,12 @@ public class WorkItemHandler
 
     private ProjectConfiguration GetConfiguration()
     {
-        DirectoryInfo rootDirectory = new DirectoryInfo(setup.IsTestAgentRun ? setup.SystemWorkFolder : setup.GitRootFolder);
-        FileInfo configurationFile = GetTopMostConfigurationFile(rootDirectory) ?? new FileInfo(BaseConfigurationFileName);
+        FileInfo fallbackConfigurationFile = new FileInfo(BaseConfigurationFileName);
+
+        DirectoryInfo rootDirectory = new DirectoryInfo(setup.GitRootFolder ?? setup.GetGitRootFolder(fallbackConfigurationFile.DirectoryName));
+        Console.WriteLine($"[INFO] Configuration root directory: {rootDirectory.FullName}");
+        FileInfo configurationFile = GetTopMostConfigurationFile(rootDirectory) ?? fallbackConfigurationFile;
+        Console.WriteLine($"[INFO] Configuration file: {configurationFile.FullName}");
 
         ProjectConfiguration projectConfiguration;
         using (StreamReader reader = configurationFile.OpenText())
