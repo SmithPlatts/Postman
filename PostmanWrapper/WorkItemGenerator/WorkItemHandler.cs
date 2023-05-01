@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi;
 using Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models;
@@ -9,53 +8,48 @@ using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi.Patch.Json;
 using Microsoft.VisualStudio.Services.WebApi.Patch;
 using Microsoft.VisualStudio.Services.WebApi;
-using System.Net.Http.Headers;
-using System.Net.Http;
-using Newtonsoft.Json;
 using Postman.Common;
 using Microsoft.VisualStudio.Services.Client;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Postman.Wrapper;
-using System.Diagnostics;
-using System.Xml;
+using System.IO;
 
 /// <summary>
 /// Automatic creation and update of ADO work items of type Test Case, wrapping Postman test cases into MSTest based test cases.
 /// </summary>
 public class WorkItemHandler
 {
+    private const string BaseConfigurationFileName = "AzureDevOps.xml";
+    private const string ConfigurationFileNamePattern = "AzureDevOps.*";
+    private const string ConfigurationFolderNamePattern = "Config*";
+    private const string ConnectionUrlVariableName = "Connection_Url";
+    private const string ConnectionProjectVariableName = "Connection_Project";
+    private const string TestCaseAreaPathVariableName = "TestCase_AreaPath";
+
     readonly Setup setup;
-    readonly string project;
-    readonly string areaPath;
-    readonly List<KeyValuePair<string, string>> customFields;
+    readonly ProjectConfiguration configuration;
     readonly VssConnection connection;
     readonly WorkItemTrackingHttpClient witClient;
 
+    readonly string[] _supportedConfigurationFileExtensions = new[] { ".json", ".xml" };
+
     public WorkItemHandler()
     {
-        XmlDocument doc = new XmlDocument();
-        doc.Load("AzureDevops.xml");
-        string azureDevOpsUrl = doc.DocumentElement.SelectSingleNode("/Data/Connection/Url").InnerText;
-        project = doc.DocumentElement.SelectSingleNode("/Data/Connection/Project").InnerText;
-        areaPath = doc.DocumentElement.SelectSingleNode("/Data/TestCase/AreaPath").InnerText;
-        customFields = new List<KeyValuePair<string, string>>();
-        XmlNodeList fieldList = doc.DocumentElement.SelectNodes("/Data/TestCase/CustomFields/CustomField");
-        foreach (XmlNode field in fieldList)
-            customFields.Add(field.Attributes["id"].Value, field.Attributes["defaultvalue"].Value);
-
         setup = new Setup();
+        configuration = GetConfiguration();
+
         if (setup.IsTestAgentRun)
         {
             string accessToken = Environment.GetEnvironmentVariable("SYSTEM_ACCESSTOKEN");
             Assert.IsTrue(!string.IsNullOrEmpty(accessToken), "Cannot retrieve access token in pipeline");
             VssBasicCredential credentials = new VssBasicCredential("", accessToken);
-            connection = new VssConnection(new Uri(azureDevOpsUrl), credentials);
+            connection = new VssConnection(configuration.Connection.Url, credentials);
         }
         else
         {
             VssClientCredentials credentials = new VssClientCredentials();
-            connection = new VssConnection(new Uri(azureDevOpsUrl), credentials);
+            connection = new VssConnection(configuration.Connection.Url, credentials);
         }
         witClient = connection.GetClient<WorkItemTrackingHttpClient>();
     }
@@ -84,9 +78,9 @@ public class WorkItemHandler
                 Wiql query = new Wiql()
                 {
                     Query = string.Format("SELECT [Id] FROM workitems WHERE [System.TeamProject] = '{0}' AND [System.WorkItemType] = '{1}' AND [System.Id] = '{2}'",
-                    project, ADOTestCaseWorkItemType(), workItemId)
+                    configuration.Connection.Project, ADOTestCaseWorkItemType(), workItemId)
                 };
-                WorkItemQueryResult result = witClient.QueryByWiqlAsync(query, project).Result;
+                WorkItemQueryResult result = witClient.QueryByWiqlAsync(query, configuration.Connection.Project).Result;
                 if (result.WorkItems.Count() == 0) throw new Exception(string.Format("Linked Test Case with prescribed id {0} could not be found",workItemId));
 
                 WorkItemReference wir = result.WorkItems.First();
@@ -94,7 +88,7 @@ public class WorkItemHandler
                 JsonPatchDocument patchDoc = GetPatchDocumentAutomation(mi, wi);
                 if (patchDoc.Count > 0)
                 {
-                    Task<WorkItem> item = witClient.UpdateWorkItemAsync(patchDoc, project, wir.Id);
+                    Task<WorkItem> item = witClient.UpdateWorkItemAsync(patchDoc, configuration.Connection.Project, wir.Id);
                     item.GetAwaiter().GetResult();
                     Console.WriteLine("Update manually linked Test Case : " + workItemId);
                 }
@@ -108,13 +102,13 @@ public class WorkItemHandler
                 Wiql query = new Wiql() 
                 { 
                     Query = string.Format("SELECT [Id] FROM workitems WHERE [System.TeamProject] = '{0}' AND [System.WorkItemType] = '{1}' AND [System.Title] = '{2}' AND [Microsoft.VSTS.TCM.AutomatedTestType] =  '{3}'", 
-                    project, ADOTestCaseWorkItemType(), ADOTestCaseTitle(mi), ADOTestCaseAutomatedTestType()) 
+                    configuration.Connection.Project, ADOTestCaseWorkItemType(), ADOTestCaseTitle(mi), ADOTestCaseAutomatedTestType()) 
                 };
-                WorkItemQueryResult result = witClient.QueryByWiqlAsync(query, project).Result;
+                WorkItemQueryResult result = witClient.QueryByWiqlAsync(query, configuration.Connection.Project).Result;
                 if (result.WorkItems.Count() == 0)
                 {
                     JsonPatchDocument patchDoc = GetPatchDocumentFull(mi, null);
-                    Task<WorkItem> item = witClient.CreateWorkItemAsync(patchDoc, project, ADOTestCaseWorkItemType());
+                    Task<WorkItem> item = witClient.CreateWorkItemAsync(patchDoc, configuration.Connection.Project, ADOTestCaseWorkItemType());
                     var res = item.GetAwaiter().GetResult();
                     workItemId = (int)res.Id;
                     Console.WriteLine("Create automatically linked Test Case : " + workItemId);
@@ -127,7 +121,7 @@ public class WorkItemHandler
                     JsonPatchDocument patchDoc = GetPatchDocumentFull(mi, wi);
                     if (patchDoc.Count > 0)
                     {
-                        Task<WorkItem> item = witClient.UpdateWorkItemAsync(patchDoc, project, wir.Id);
+                        Task<WorkItem> item = witClient.UpdateWorkItemAsync(patchDoc, configuration.Connection.Project, wir.Id);
                         item.GetAwaiter().GetResult();
                         Console.WriteLine("Update automatically linked Test Case : " + workItemId);
                     }
@@ -145,13 +139,76 @@ public class WorkItemHandler
         }
     }
 
+    private ProjectConfiguration GetConfiguration()
+    {
+        DirectoryInfo rootDirectory = new DirectoryInfo(setup.IsTestAgentRun ? setup.SystemWorkFolder : setup.GitRootFolder);
+        FileInfo configurationFile = GetTopMostConfigurationFile(rootDirectory) ?? new FileInfo(BaseConfigurationFileName);
+
+        ProjectConfiguration projectConfiguration;
+        using (StreamReader reader = configurationFile.OpenText())
+        {
+            if (configurationFile?.Extension?.Equals(".json", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                projectConfiguration = ProjectConfiguration.DeserializeJson(reader);
+            }
+            else
+            {
+                projectConfiguration = ProjectConfiguration.DeserializeXml(reader);
+            }
+        }
+
+        string connectionUrlFromVariable = Environment.GetEnvironmentVariable(ConnectionUrlVariableName);
+        if (!string.IsNullOrWhiteSpace(connectionUrlFromVariable))
+        {
+            projectConfiguration.Connection.Url = new Uri(connectionUrlFromVariable);
+        }
+        string connectionProjectFromVariable = Environment.GetEnvironmentVariable(ConnectionProjectVariableName);
+        if (!string.IsNullOrWhiteSpace(connectionProjectFromVariable))
+        {
+            projectConfiguration.Connection.Project = connectionProjectFromVariable;
+        }
+        string testCaseAreaPathFromVariable = Environment.GetEnvironmentVariable(TestCaseAreaPathVariableName);
+        if (!string.IsNullOrWhiteSpace(testCaseAreaPathFromVariable))
+        {
+            projectConfiguration.TestCase.AreaPath = testCaseAreaPathFromVariable;
+        }
+
+        return projectConfiguration;
+    }
+
+    private FileInfo GetTopMostConfigurationFile(DirectoryInfo rootDirectory)
+    {
+        IEnumerable<FileInfo> getConfigurationFiles(DirectoryInfo directory, string searchPattern, string[] supportedFileExtensions) => directory
+            .GetFiles(searchPattern, SearchOption.TopDirectoryOnly)
+            .Where(fileInfo => supportedFileExtensions.Contains(fileInfo.Extension, StringComparer.OrdinalIgnoreCase));
+        FileInfo getLastWrittenFile(IEnumerable<FileInfo> fileInfos) => fileInfos?.OrderByDescending(fileInfo => fileInfo.LastWriteTimeUtc).FirstOrDefault();
+
+        IEnumerable<FileInfo> files = getConfigurationFiles(rootDirectory, ConfigurationFileNamePattern, _supportedConfigurationFileExtensions);
+        if (files.Any())
+        {
+            return getLastWrittenFile(files);
+        }
+
+        DirectoryInfo[] childDirectories = rootDirectory.GetDirectories(ConfigurationFolderNamePattern, SearchOption.TopDirectoryOnly);
+        foreach (DirectoryInfo directory in childDirectories)
+        {
+            files = getConfigurationFiles(directory, ConfigurationFileNamePattern, _supportedConfigurationFileExtensions);
+            if (files.Any())
+            {
+                break;
+            }
+        }
+
+        return getLastWrittenFile(files);
+    }
+
     private JsonPatchDocument GetPatchDocumentFull(MethodInfo mi, WorkItem wi)
     {
         JsonPatchDocument patchDocument = GetPatchDocumentAutomation(mi, wi);
         AddJsonPatchOperation(patchDocument, "System.Title", ADOTestCaseTitle(mi), wi);
         AddJsonPatchOperation(patchDocument, "System.Description", ADOTestCaseDescription(), wi);
         AddJsonPatchOperation(patchDocument, "System.AreaPath", ADOTestCaseAreaPath(), wi);
-        foreach (var pair in customFields) AddJsonPatchOperation(patchDocument, pair.Key, pair.Value, wi);
+        foreach (var customField in configuration.TestCase.CustomFields) AddJsonPatchOperation(patchDocument, customField.Id, customField.DefaultValue, wi);
         return patchDocument;
     }
 
@@ -193,7 +250,7 @@ public class WorkItemHandler
 
     private string ADOTestCaseAreaPath()
     {
-        return areaPath;
+        return configuration.TestCase.AreaPath;
     }
 
     private string ADOTestCaseDescription()
