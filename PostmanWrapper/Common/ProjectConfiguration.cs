@@ -61,6 +61,7 @@ namespace Postman.Common
     public class ProjectConnection
     {
         private Uri _url = null;
+        private string _urlOriginalString = string.Empty;
 
         [JsonIgnore]
         [XmlIgnore]
@@ -68,19 +69,27 @@ namespace Postman.Common
         {
             get
             {
-                if (_url is null && !string.IsNullOrWhiteSpace(UrlString))
+                if ((_url is null && !string.IsNullOrWhiteSpace(_urlOriginalString)) || _url.OriginalString != _urlOriginalString)
                 {
-                    _url = new Uri(UrlString);
+                    _url = new Uri(_urlOriginalString);
                 }
 
                 return _url;
             }
-            set => _url = value;
+            set
+            {
+                _url = value;
+                _urlOriginalString = _url?.OriginalString ?? string.Empty;
+            }
         }
 
         [JsonProperty("Url")]
         [XmlElement("Url")]
-        public string UrlString { get; set; } = string.Empty;
+        public string UrlString
+        {
+            get => _urlOriginalString;
+            set => _urlOriginalString = value ?? string.Empty;
+        }
 
         public string Project { get; set; } = string.Empty;
     }
