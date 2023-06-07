@@ -231,6 +231,9 @@ namespace Postman.Wrapper
             var preserveOutputFiles = bool.TryParse(Environment.GetEnvironmentVariable("Postman_PreserveOutputFiles"), out bool preserveOutputFilesFromEnv) && preserveOutputFilesFromEnv;
             if (!preserveOutputFiles) File.Delete(OutputFilePath);
             Assert.IsTrue(result.Run.Failures.Count() == 0, GetDebugInfo("Errors occured in Postman test execution"));
+
+            var total = result.Run.Stats.Iterations.Total + result.Run.Stats.Items.Total + result.Run.Stats.Requests.Total + result.Run.Stats.Tests.Total;
+            if (total == 0) Assert.Inconclusive(GetDebugInfo("No requests/tests executed"));
         }
 
         private void CommandLineExecutor(string cmdLine, out string output, out string err)
