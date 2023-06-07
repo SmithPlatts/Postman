@@ -20,6 +20,7 @@ namespace Postman.Wrapper
         string collectionFileFolder;
         string dataline;
         string datafilePath;
+        bool? debug;
         Setup setup;
 
         public PostmanWrapper(string myCollectionName, string myFolder)
@@ -118,6 +119,36 @@ namespace Postman.Wrapper
             }
         }
 
+        private bool Debug
+        {
+            get
+            {
+                if (debug.HasValue) return debug.Value;
+
+                var postmanDebug = bool.TryParse(Environment.GetEnvironmentVariable("Postman_Debug"), out bool postmanDebugFromEnv) && postmanDebugFromEnv;
+                var systemDebug = bool.TryParse(Environment.GetEnvironmentVariable("System_Debug"), out bool systemDebugFromEnv) && systemDebugFromEnv;
+                debug = postmanDebug || systemDebug;
+                return debug.Value;
+            }
+        }
+
+        private string DebugFileName
+        {
+            get
+            {
+                return string.Format("newman_debug_{0}_{1}.log", collectionName, folder);
+            }
+        }
+
+        private string DebugFilePath
+        {
+            get
+            {
+                string folder = Path.GetDirectoryName(CollectionFilePath);
+                return Path.Combine(folder, DebugFileName);
+            }
+        }
+
         private string EnvironmentFilePath
         {
             get
@@ -156,9 +187,13 @@ namespace Postman.Wrapper
             Assert.IsTrue(File.Exists(CollectionFilePath), GetDebugInfo("Could not find Postman collection file."));
             cmdLine = GenerateNewmanCommand();
             CommandLineExecutor(cmdLine, out cmdOutput, out cmdErr);
+            if (Debug) File.WriteAllText(DebugFilePath, GetDebugInfo());
 
-            // Parse postman output 
             Assert.IsTrue(File.Exists(OutputFilePath), GetDebugInfo("Could not find Postman output file"));
+            if (bool.TryParse(Environment.GetEnvironmentVariable("Postman_UploadOutputFiles"), out bool postmanUploadOutputFromEnv) && postmanUploadOutputFromEnv) tc.AddResultFile(OutputFilePath);
+
+            Assert.IsTrue(string.IsNullOrWhiteSpace(cmdErr), GetDebugInfo("There is content in stderr"));
+            // Parse postman output 
             ParseOutputFile(tc);
         }
 
@@ -167,7 +202,8 @@ namespace Postman.Wrapper
             string environmentArg = string.IsNullOrEmpty(EnvironmentFilePath) ? string.Empty : string.Format("-e {0}", EnvironmentFilePath.EnquoteIfSpaces());
             string globalsArg = string.IsNullOrEmpty(GlobalsFilePath) ? string.Empty : string.Format("-g {0}", GlobalsFilePath.EnquoteIfSpaces());
             string dataArg = string.IsNullOrEmpty(DataFilePath) ? string.Empty : string.Format("-d {0}", DataFilePath.EnquoteIfSpaces());
-            return string.Format("newman run \"{0}\" --folder {1} {2} {3} {4} --reporters cli,json --reporter-json-export \"{5}\" -n 1", CollectionFilePath, folder, globalsArg, dataArg, environmentArg, OutputFilePath);
+            string verboseArg = Debug ? "--verbose" : string.Empty;
+            return string.Format("newman run \"{0}\" --folder {1} {2} {3} {4} --reporters cli,json --reporter-json-export \"{5}\" -n 1 {6}", CollectionFilePath, folder, globalsArg, dataArg, environmentArg, OutputFilePath, verboseArg);
         }
 
         private string GetCollectionFileFolder()
