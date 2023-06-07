@@ -192,7 +192,8 @@ namespace Postman.Wrapper
             string content = File.ReadAllText(OutputFilePath);
             var result = Newtonsoft.Json.JsonConvert.DeserializeObject<Output>(content);
             foreach (var s in result.Run.Failures) tc.WriteLine(s.ToString());
-            File.Delete(OutputFilePath);
+            var preserveOutputFiles = bool.TryParse(Environment.GetEnvironmentVariable("Postman_PreserveOutputFiles"), out bool preserveOutputFilesFromEnv) && preserveOutputFilesFromEnv;
+            if (!preserveOutputFiles) File.Delete(OutputFilePath);
             Assert.IsTrue(result.Run.Failures.Count() == 0, GetDebugInfo("Errors occured in Postman test execution"));
         }
 
