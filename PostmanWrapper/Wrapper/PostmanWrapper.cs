@@ -209,7 +209,7 @@ namespace Postman.Wrapper
             string globalsArg = string.IsNullOrEmpty(GlobalsFilePath) ? string.Empty : string.Format("-g {0}", GlobalsFilePath.EnquoteIfSpaces());
             string dataArg = string.IsNullOrEmpty(DataFilePath) ? string.Empty : string.Format("-d {0}", DataFilePath.EnquoteIfSpaces());
             string verboseArg = Debug ? "--verbose" : string.Empty;
-            return string.Format("newman run \"{0}\" --folder {1} {2} {3} {4} --reporters cli,json --reporter-json-export \"{5}\" -n 1 {6}", CollectionFilePath, folder, globalsArg, dataArg, environmentArg, OutputFilePath, verboseArg);
+            return string.Format("newman run \"{0}\" --folder {1} {2} {3} {4} --reporters cli,json --reporter-json-export \"{5}\" -n 1 --disable-unicode {6}", CollectionFilePath, folder, globalsArg, dataArg, environmentArg, OutputFilePath, verboseArg);
         }
 
         private string GetCollectionFileFolder()
