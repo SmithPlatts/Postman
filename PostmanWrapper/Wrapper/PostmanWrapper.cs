@@ -161,10 +161,13 @@ namespace Postman.Wrapper
                 pathJson = Path.Combine(collectionFileFolder, string.Format("{0}.environment.json", collectionName));
                 if (File.Exists(pathJson)) return pathJson;
 
+                pathJson = Path.Combine(collectionFileFolder, ".postman_environment.json");
+                if (File.Exists(pathJson)) return pathJson;
+
                 return string.Empty;
             }
         }
-        
+
         private string GlobalsFilePath
         {
             get
@@ -175,6 +178,9 @@ namespace Postman.Wrapper
                 if (File.Exists(path)) return path;
 
                 path = Path.Combine(collectionFileFolder, string.Format("{0}.globals.json", collectionName));
+                if (File.Exists(path)) return path;
+
+                path = Path.Combine(collectionFileFolder, ".postman_globals.json");
                 if (File.Exists(path)) return path;
 
                 return string.Empty;
